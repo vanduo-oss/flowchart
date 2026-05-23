@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vanduo Flowchart test harness</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <style>
+      :root {
+        --vd-bg-primary: #fbf7ee;
+        --vd-bg-secondary: #efe7d4;
+        --vd-border-color: #d5ccba;
+        --vd-text-primary: #1f2720;
+        --vd-text-muted: #67746a;
+        --vd-color-primary: #245f52;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        background: #f6efdf;
+      }
+
+      .mount {
+        width: 100%;
+        max-width: 1280px;
+        min-height: 680px;
+        margin-bottom: 24px;
+      }
+    </style>
+    <script>
+      window.Vanduo = {
+        components: {},
+        register(name, component) {
+          this.components[name] = component;
+        },
+        queryAll(root, selector) {
+          const scope = root || document;
+          const matches = [];
+          if (scope instanceof Element && scope.matches(selector)) {
+            matches.push(scope);
+          }
+          if (scope.querySelectorAll) {
+            scope.querySelectorAll(selector).forEach((el) => matches.push(el));
+          }
+          return matches;
+        },
+        init(root) {
+          Object.values(this.components).forEach((component) => {
+            if (component && typeof component.init === 'function') {
+              component.init(root || document);
+            }
+          });
+        },
+        destroy(root) {
+          Object.values(this.components).forEach((component) => {
+            if (component && typeof component.destroyAll === 'function') {
+              component.destroyAll(root || document);
+            }
+          });
+        },
+        reinit(name, root) {
+          const component = this.components[name];
+          if (!component) return;
+          if (typeof component.destroyAll === 'function') component.destroyAll(root || document);
+          if (typeof component.init === 'function') component.init(root || document);
+        }
+      };
+    </script>
+  </head>
+  <body>
+    <div id="editor" class="mount"></div>
+    <script type="application/json" id="auto-flow-data">
+      {
+        "nodes": [
+          { "id": "start", "type": "circle", "x": 40, "y": 80, "text": "Start" },
+          { "id": "review", "type": "rounded-rect", "x": 260, "y": 92, "text": "Review" },
+          { "id": "decision", "type": "diamond", "x": 520, "y": 72, "text": "Approved?" }
+        ],
+        "edges": [
+          {
+            "id": "edge-a",
+            "from": { "nodeId": "start", "port": "right" },
+            "to": { "nodeId": "review", "port": "left" },
+            "kind": "arrow"
+          },
+          {
+            "id": "edge-b",
+            "from": { "nodeId": "review", "port": "right" },
+            "to": { "nodeId": "decision", "port": "left" },
+            "kind": "arrow"
+          }
+        ]
+      }
+    </script>
+    <div
+      id="auto-editor"
+      class="mount"
+      data-vd-flowchart
+      data-vd-flowchart-data="#auto-flow-data"
+      data-vd-flowchart-grid-size="24"
+    ></div>
+
+    <script type="module">
+      import * as flowchart from '/src/index.js';
+
+      const sample = {
+        nodes: [
+          { id: 'start', type: 'circle', x: 40, y: 80, text: 'Start' },
+          { id: 'review', type: 'rounded-rect', x: 260, y: 92, text: 'Review request' },
+          { id: 'decision', type: 'diamond', x: 520, y: 72, text: 'Approved?' }
+        ],
+        edges: [
+          {
+            id: 'edge-a',
+            from: { nodeId: 'start', port: 'right' },
+            to: { nodeId: 'review', port: 'left' },
+            kind: 'arrow'
+          },
+          {
+            id: 'edge-b',
+            from: { nodeId: 'review', port: 'right' },
+            to: { nodeId: 'decision', port: 'left' },
+            kind: 'arrow'
+          }
+        ]
+      };
+
+      window.flowchartApi = flowchart;
+      window.flowchartEvents = [];
+
+      window.createEditor = (data = sample) => {
+        const editor = new flowchart.VdFlowchart({
+          element: document.getElementById('editor'),
+          data
+        });
+        editor.on('change', (event) => {
+          window.flowchartEvents.push({ type: 'change', reason: event.reason });
+        });
+        editor.on('connect', (event) => {
+          window.flowchartEvents.push({ type: 'connect', id: event.edge.id });
+        });
+        editor.on('viewport', (event) => {
+          window.flowchartEvents.push({ type: 'viewport', scale: event.viewport.scale });
+        });
+        window.flowchartEditor = editor;
+        return editor;
+      };
+
+      window.resetEditor = () => {
+        if (window.flowchartEditor) window.flowchartEditor.destroy();
+        return window.createEditor();
+      };
+
+      window.resetEditor();
+    </script>
+  </body>
+</html>

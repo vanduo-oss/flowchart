@@ -1,0 +1,66 @@
+{
+  "name": "@vanduo-oss/flowchart",
+  "version": "0.0.1",
+  "description": "Standalone SVG flowchart editor for Vanduo diagrams and documentation",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./css": "./dist/vanduo-flowchart.css",
+    "./iife": {
+      "default": "./dist/vanduo-flowchart.iife.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "vanduo",
+    "flowchart",
+    "diagram",
+    "editor",
+    "svg",
+    "workflow"
+  ],
+  "license": "MIT",
+  "author": "vanduo-oss",
+  "homepage": "https://vanduo.dev/#docs/vd-flowchart",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vanduo-oss/flowchart"
+  },
+  "sideEffects": [
+    "./dist/vanduo-flowchart.css",
+    "./dist/vanduo-flowchart.iife.js"
+  ],
+  "scripts": {
+    "build": "node scripts/build.js",
+    "clean": "rm -rf dist",
+    "prepack": "pnpm run build",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.59.1",
+    "esbuild": "^0.27.7"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@playwright/test",
+      "esbuild"
+    ]
+  },
+  "packageManager": "pnpm@10.28.2"
+}
