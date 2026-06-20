@@ -12,12 +12,17 @@
 }
 
 .vd-flowchart-host {
-  min-height: 560px;
+  /* A definite height (not just min-height) so the editor's internal grid can
+     size its body row deterministically. Consumers that set a larger min-height
+     or height still win — the used height is the larger of the two and stays
+     definite, which keeps the canvas from resizing when the inspector fills in. */
+  height: 560px;
 }
 
 .vd-flowchart-shell {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
   min-height: 560px;
   border: 1px solid var(--vd-flowchart-border);
   border-radius: 8px;
@@ -64,6 +69,10 @@
   gap: 0.9rem;
   padding: 0.95rem;
   background: color-mix(in srgb, var(--vd-flowchart-panel-alt) 88%, transparent);
+  /* Scroll the panel's own content instead of growing the shell (and with it
+     the canvas) when a selection populates the inspector. */
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .vd-flowchart-panel--palette {
@@ -229,7 +238,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 560px;
+  min-height: 0;
   touch-action: none;
 }
 
@@ -543,7 +552,9 @@
 @media (max-width: 1180px) {
   .vd-flowchart-body {
     grid-template-columns: 200px minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    /* Cap the stacked inspector so it scrolls rather than stealing canvas
+       height (which would make the canvas jump on selection). */
+    grid-template-rows: minmax(0, 1fr) minmax(0, 16rem);
   }
 
   .vd-flowchart-panel--inspector {
@@ -556,16 +567,12 @@
 @media (max-width: 840px) {
   .vd-flowchart-body {
     grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(360px, 1fr) auto;
+    grid-template-rows: auto minmax(280px, 1fr) minmax(0, 16rem);
   }
 
   .vd-flowchart-panel--palette {
     border-right: 0;
     border-bottom: 1px solid var(--vd-flowchart-border);
-  }
-
-  .vd-flowchart-svg {
-    min-height: 420px;
   }
 
   .vd-flowchart-palette {

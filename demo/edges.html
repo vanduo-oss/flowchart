@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vanduo Flowchart — edge routing demo</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <style>
+      :root {
+        --vd-bg-primary: #fbf7ee;
+        --vd-bg-secondary: #efe7d4;
+        --vd-border-color: #d5ccba;
+        --vd-text-primary: #1f2720;
+        --vd-text-muted: #67746a;
+        --vd-color-primary: #245f52;
+      }
+
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        background: #f6efdf;
+        color: #1f2720;
+      }
+
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+
+      p.lead {
+        margin: 0 0 20px;
+        color: #67746a;
+        max-width: 720px;
+      }
+
+      .grid {
+        display: grid;
+        /* The editor packs palette + canvas + inspector side by side, so each
+           card needs enough width for the canvas itself to be visible. */
+        grid-template-columns: repeat(auto-fit, minmax(900px, 1fr));
+        gap: 20px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #d5ccba;
+        border-radius: 12px;
+        padding: 12px 12px 16px;
+        box-shadow: 0 1px 2px rgba(31, 39, 32, 0.06);
+      }
+
+      .card h2 {
+        font-size: 14px;
+        margin: 4px 4px 10px;
+        text-transform: capitalize;
+      }
+
+      .card .desc {
+        font-size: 12px;
+        color: #67746a;
+        margin: 0 4px 10px;
+      }
+
+      .mount {
+        width: 100%;
+        min-height: 560px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Edge routing demo — dev-v0.0.2</h1>
+    <p class="lead">
+      Side-by-side comparison of the three routes across many relative node
+      placements (target ahead, below, above, diagonal, and behind the source).
+      Curves should bow naturally with no S-arcs; orthogonal corners should be
+      rounded with no broken joints. Edit <code>src/index.js</code> and the page
+      auto-reloads.
+    </p>
+
+    <div class="grid" id="grid"></div>
+
+    <script type="module">
+      import { VdFlowchart } from '/src/index.js';
+
+      // Scenarios: each is a source/target placement + the ports used. These
+      // exercise the cases that previously looked wrong — diagonals and the
+      // "target behind the source" case in particular.
+      // Each scenario is laid out within its own 350×230 band; the band is then
+      // offset vertically (BAND_GAP per index) so scenarios never overlap.
+      const BAND_GAP = 260;
+      const scenarios = [
+        { id: 'ahead',    label: 'ahead',          s: { x: 0,   y: 80 },  t: { x: 200, y: 80 },  sp: 'right',  tp: 'left'  },
+        { id: 'below',    label: 'below',          s: { x: 40,  y: 0 },   t: { x: 40,  y: 160 }, sp: 'bottom', tp: 'top'   },
+        { id: 'diagdown', label: 'diagonal down',  s: { x: 0,   y: 0 },   t: { x: 200, y: 160 }, sp: 'right',  tp: 'top'   },
+        { id: 'diagup',   label: 'diagonal up',    s: { x: 0,   y: 160 }, t: { x: 200, y: 0 },   sp: 'right',  tp: 'bottom'},
+        { id: 'behind',   label: 'behind (loop)',  s: { x: 200, y: 10 },  t: { x: 0,   y: 150 }, sp: 'right',  tp: 'left'  }
+      ];
+
+      function buildData(route) {
+        const nodes = [];
+        const edges = [];
+        scenarios.forEach((sc, index) => {
+          const srcId = `${sc.id}-s`;
+          const dstId = `${sc.id}-t`;
+          const dy = index * BAND_GAP;
+          nodes.push(
+            { id: srcId, type: 'rounded-rect', x: sc.s.x, y: sc.s.y + dy, width: 150, height: 70, text: sc.label },
+            { id: dstId, type: 'rounded-rect', x: sc.t.x, y: sc.t.y + dy, width: 150, height: 70, text: 'target' }
+          );
+          edges.push({
+            id: `${sc.id}-e`,
+            from: { nodeId: srcId, port: sc.sp },
+            to: { nodeId: dstId, port: sc.tp },
+            route,
+            endMarker: 'arrow'
+          });
+        });
+        return { nodes, edges };
+      }
+
+      const routes = ['curve', 'straight', 'orthogonal'];
+      const grid = document.getElementById('grid');
+      window.demoEditors = {};
+
+      routes.forEach((route) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const title = document.createElement('h2');
+        title.textContent = `route: ${route}`;
+        card.appendChild(title);
+
+        const desc = document.createElement('p');
+        desc.className = 'desc';
+        desc.textContent = 'Same 5 placements for every route. Drag nodes to stress-test routing.';
+        card.appendChild(desc);
+
+        const mount = document.createElement('div');
+        mount.className = 'mount';
+        card.appendChild(mount);
+
+        grid.appendChild(card);
+
+        const editor = new VdFlowchart({ element: mount, data: buildData(route) });
+        editor.fitView?.();
+        window.demoEditors[route] = editor;
+      });
+    </script>
+  </body>
+</html>

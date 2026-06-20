@@ -51,6 +51,7 @@ editor.destroy();
 - Port-guided connections with a one-shot Arrow tool; drops snap to the nearest side of the target shape
 - Selected-only connection handles, selected-edge reconnect handles, and larger arrowheads for calmer pointer targeting
 - Per-edge route, marker, and line-weight controls with `thin`, `medium`, and `bold` presets
+- Natural `curve` edges (per-axis bezier control offsets) and node-aware `orthogonal` routing with rounded corners that routes around nodes instead of cutting through them
 - Double-click inline text editing with commit/cancel keyboard controls
 - Selected-node resize handles with live edge endpoint updates
 - Built-in editor shell with primitive previews, inspector, and JSON import/export
@@ -63,6 +64,11 @@ editor.destroy();
 ```js
 new VdFlowchart({ element, data, readonly, gridSize })
 ```
+
+The editor fills its host element and ships a default height of `560px`. Give the
+host element a `height` or `min-height` to size the editor; the canvas stays a
+fixed size while the inspector scrolls internally, so selecting a node never
+resizes the canvas.
 
 ### Methods
 

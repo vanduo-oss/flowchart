@@ -25,7 +25,7 @@ const EDGE_STROKE_PRESETS = [
   { id: 'bold', label: 'Bold', width: 3.5 }
 ];
 
-export const VD_FLOWCHART_VERSION = '0.0.1';
+export const VD_FLOWCHART_VERSION = '1.0.0';
 export const FLOWCHART_NODE_TYPES = [
   'rounded-rect',
   'rect',
@@ -41,6 +41,9 @@ export const FLOWCHART_EDGE_ROUTES = ['curve', 'straight', 'orthogonal'];
 
 const DEFAULT_EDGE_ROUTE = 'curve';
 const ORTHOGONAL_STUB_LENGTH = 32;
+const ORTHOGONAL_CORNER_RADIUS = 12;
+const ORTHOGONAL_CLEARANCE = 16;
+const EDGE_CURVATURE = 0.25;
 const FLOWCHART_EDGE_ROUTE_LABELS = {
   curve: 'Curve',
   straight: 'Straight',
@@ -526,6 +529,46 @@ function buildPathFromPoints(points) {
   }).join(' ');
 }
 
+// Render an orthogonal polyline with rounded corners. Each interior vertex is
+// replaced by `L <approach> Q <corner> <departure>`, where approach/departure
+// are pulled back from the corner by a radius clamped to half of each adjacent
+// segment so short segments never overshoot. Endpoints (first M, final L) stay
+// exact. Quadratic Q joins keep the output free of cubic `C` commands.
+function buildRoundedPath(points, radius) {
+  if (points.length < 3 || radius <= 0) {
+    return buildPathFromPoints(points);
+  }
+
+  let d = `M ${formatNumber(points[0].x)} ${formatNumber(points[0].y)}`;
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const prev = points[index - 1];
+    const corner = points[index];
+    const next = points[index + 1];
+    const lenIn = Math.hypot(corner.x - prev.x, corner.y - prev.y);
+    const lenOut = Math.hypot(next.x - corner.x, next.y - corner.y);
+    const r = Math.min(radius, lenIn / 2, lenOut / 2);
+
+    if (!(r > 0)) {
+      d += ` L ${formatNumber(corner.x)} ${formatNumber(corner.y)}`;
+      continue;
+    }
+
+    const approach = {
+      x: corner.x - ((corner.x - prev.x) / lenIn) * r,
+      y: corner.y - ((corner.y - prev.y) / lenIn) * r
+    };
+    const departure = {
+      x: corner.x + ((next.x - corner.x) / lenOut) * r,
+      y: corner.y + ((next.y - corner.y) / lenOut) * r
+    };
+    d += ` L ${formatNumber(approach.x)} ${formatNumber(approach.y)}`;
+    d += ` Q ${formatNumber(corner.x)} ${formatNumber(corner.y)} ${formatNumber(departure.x)} ${formatNumber(departure.y)}`;
+  }
+  const last = points[points.length - 1];
+  d += ` L ${formatNumber(last.x)} ${formatNumber(last.y)}`;
+  return d;
+}
+
 function getPolylineLabelPoint(points) {
   let totalLength = 0;
   for (let index = 1; index < points.length; index += 1) {
@@ -561,25 +604,47 @@ function getPolylineLabelPoint(points) {
   return { x: formatNumber(last.x), y: formatNumber(last.y) };
 }
 
+// Offset of a cubic-bezier control point along its port's own axis.
+// `distance` is signed: positive when the target lies ahead of the port
+// direction, negative when it sits behind it. Half-distance for the common
+// "ahead" case keeps curves taut; a gentle sqrt bow for the "behind" case
+// avoids the large loops/S-arcs the old max(dx, dy) heuristic produced.
+// Mirrors React Flow's getBezierPath control-offset model. Always returns a
+// non-negative offset, so a target sharing the port's axis (distance 0) yields
+// a control point coincident with the port — i.e. no curvature on that axis.
+function calculateControlOffset(distance, curvature) {
+  if (distance >= 0) {
+    return 0.5 * distance;
+  }
+  return curvature * 25 * Math.sqrt(-distance);
+}
+
+function getCurveControlPoint(point, port, target, curvature) {
+  switch (port) {
+    case 'left':
+      return { x: point.x - calculateControlOffset(point.x - target.x, curvature), y: point.y };
+    case 'right':
+      return { x: point.x + calculateControlOffset(target.x - point.x, curvature), y: point.y };
+    case 'top':
+      return { x: point.x, y: point.y - calculateControlOffset(point.y - target.y, curvature) };
+    case 'bottom':
+    default:
+      return { x: point.x, y: point.y + calculateControlOffset(target.y - point.y, curvature) };
+  }
+}
+
 function buildCurvePath(fromPoint, toPoint, fromPort = 'right', toPort = 'left') {
-  const fromNormal = getPortNormal(fromPort);
-  const toNormal = getPortNormal(toPort);
-  const deltaX = Math.abs(toPoint.x - fromPoint.x);
-  const deltaY = Math.abs(toPoint.y - fromPoint.y);
-  const bend = Math.max(48, Math.max(deltaX, deltaY) * 0.45);
-  const controlA = {
-    x: fromPoint.x + fromNormal.x * bend,
-    y: fromPoint.y + fromNormal.y * bend
-  };
-  const controlB = {
-    x: toPoint.x - toNormal.x * bend,
-    y: toPoint.y - toNormal.y * bend
-  };
+  const controlA = getCurveControlPoint(fromPoint, fromPort, toPoint, EDGE_CURVATURE);
+  const controlB = getCurveControlPoint(toPoint, toPort, fromPoint, EDGE_CURVATURE);
+
+  // Cubic bezier value at t = 0.5 for an accurate on-curve label anchor.
+  const labelX = 0.125 * fromPoint.x + 0.375 * controlA.x + 0.375 * controlB.x + 0.125 * toPoint.x;
+  const labelY = 0.125 * fromPoint.y + 0.375 * controlA.y + 0.375 * controlB.y + 0.125 * toPoint.y;
 
   return {
     d: `M ${formatNumber(fromPoint.x)} ${formatNumber(fromPoint.y)} C ${formatNumber(controlA.x)} ${formatNumber(controlA.y)} ${formatNumber(controlB.x)} ${formatNumber(controlB.y)} ${formatNumber(toPoint.x)} ${formatNumber(toPoint.y)}`,
-    labelX: formatNumber((fromPoint.x + toPoint.x) / 2),
-    labelY: formatNumber((fromPoint.y + toPoint.y) / 2)
+    labelX: formatNumber(labelX),
+    labelY: formatNumber(labelY)
   };
 }
 
@@ -591,6 +656,42 @@ function buildStraightPath(fromPoint, toPoint) {
   };
 }
 
+function getNodeRectBounds(node, pad = 0) {
+  if (!node) return null;
+  return {
+    left: node.x - pad,
+    top: node.y - pad,
+    right: node.x + node.width + pad,
+    bottom: node.y + node.height + pad
+  };
+}
+
+// Does an axis-aligned segment pass through a rect's interior? Edge contact
+// (e.g. a stub running along a node border or a port sitting on the boundary)
+// is not a hit — only strict interior overlap counts.
+function segmentIntersectsRect(a, b, rect) {
+  if (!rect) return false;
+  const minX = Math.min(a.x, b.x);
+  const maxX = Math.max(a.x, b.x);
+  const minY = Math.min(a.y, b.y);
+  const maxY = Math.max(a.y, b.y);
+  return minX < rect.right && maxX > rect.left && minY < rect.bottom && maxY > rect.top;
+}
+
+// Pick a perpendicular "channel" coordinate that sits clear of both node
+// rectangles when the connector has to loop around them. `low` is the edge
+// before both nodes (top / left), `high` is after both (bottom / right);
+// we route on whichever side is cheaper, biased toward the target on a tie.
+function pickOrthogonalChannel(from, to, low, high) {
+  const costLow = Math.abs(low - from) + Math.abs(low - to);
+  const costHigh = Math.abs(high - from) + Math.abs(high - to);
+  if (costLow < costHigh) return low;
+  if (costHigh < costLow) return high;
+  return to >= from ? high : low;
+}
+
+// Node-blind fallback used for the live connection preview, where one endpoint
+// is a free pointer with no rectangle to route around.
 function getOrthogonalMidpoints(fromStub, toStub, fromPort, toPort) {
   const sourceHorizontal = isHorizontalPort(fromPort);
   const targetHorizontal = isHorizontalPort(toPort);
@@ -618,22 +719,93 @@ function getOrthogonalMidpoints(fromStub, toStub, fromPort, toPort) {
   return [{ x: fromStub.x, y: toStub.y }];
 }
 
-function buildOrthogonalPath(fromPoint, toPoint, fromPort = 'right', toPort = 'left') {
-  const fromStub = offsetPoint(fromPoint, getPortNormal(fromPort), ORTHOGONAL_STUB_LENGTH);
-  const toStub = offsetPoint(toPoint, getPortNormal(toPort), ORTHOGONAL_STUB_LENGTH);
-  const points = [];
+// Node-aware orthogonal routing. Each endpoint extends a stub beyond its port,
+// then the two stubs are bridged: directly when the ports face each other with
+// room in between, otherwise through a channel routed clear of both node rects
+// so the connector never cuts through a box (draw.io-style "around" routing).
+function getOrthogonalPoints(fromPoint, toPoint, fromPort, toPort, fromRect, toRect) {
+  const fromNormal = getPortNormal(fromPort);
+  const toNormal = getPortNormal(toPort);
+  const fromStub = offsetPoint(fromPoint, fromNormal, ORTHOGONAL_STUB_LENGTH);
+  const toStub = offsetPoint(toPoint, toNormal, ORTHOGONAL_STUB_LENGTH);
+  const sourceHorizontal = isHorizontalPort(fromPort);
+  const targetHorizontal = isHorizontalPort(toPort);
+  const mids = [];
 
-  [
-    fromPoint,
-    fromStub,
-    ...getOrthogonalMidpoints(fromStub, toStub, fromPort, toPort),
-    toStub,
-    toPoint
-  ].forEach((point) => addDistinctPoint(points, point));
+  if (sourceHorizontal && targetHorizontal) {
+    // A straight vertical bridge only works when the ports face each other AND
+    // the stubs leave room between them. Otherwise (facing-but-overlapping, or
+    // same-direction ports) `facing && hasRoom` is false and we always detour
+    // through a clear horizontal channel — the channel handles every such case.
+    const facing = fromNormal.x === -toNormal.x;
+    const hasRoom = fromNormal.x > 0 ? fromStub.x <= toStub.x : fromStub.x >= toStub.x;
+    if (facing && hasRoom) {
+      const midX = (fromStub.x + toStub.x) / 2;
+      mids.push({ x: midX, y: fromStub.y }, { x: midX, y: toStub.y });
+    } else {
+      const top = Math.min(fromRect.top, toRect.top);
+      const bottom = Math.max(fromRect.bottom, toRect.bottom);
+      const yChannel = pickOrthogonalChannel(fromStub.y, toStub.y, top, bottom);
+      mids.push({ x: fromStub.x, y: yChannel }, { x: toStub.x, y: yChannel });
+    }
+  } else if (!sourceHorizontal && !targetHorizontal) {
+    // Mirror of the both-horizontal case; see the comment above.
+    const facing = fromNormal.y === -toNormal.y;
+    const hasRoom = fromNormal.y > 0 ? fromStub.y <= toStub.y : fromStub.y >= toStub.y;
+    if (facing && hasRoom) {
+      const midY = (fromStub.y + toStub.y) / 2;
+      mids.push({ x: fromStub.x, y: midY }, { x: toStub.x, y: midY });
+    } else {
+      const left = Math.min(fromRect.left, toRect.left);
+      const right = Math.max(fromRect.right, toRect.right);
+      const xChannel = pickOrthogonalChannel(fromStub.x, toStub.x, left, right);
+      mids.push({ x: xChannel, y: fromStub.y }, { x: xChannel, y: toStub.y });
+    }
+  } else {
+    // Perpendicular ports form an L with a single corner. Two corners respect
+    // the exit/entry directions: the "clean" one continues the source stub's
+    // axis, the alternate continues the target stub's axis. Prefer the clean
+    // corner, but fall back to the alternate when the clean L's legs would cut
+    // through either node (e.g. target tucked beside/under the source).
+    const cleanCorner = sourceHorizontal
+      ? { x: toStub.x, y: fromStub.y }
+      : { x: fromStub.x, y: toStub.y };
+    const altCorner = sourceHorizontal
+      ? { x: fromStub.x, y: toStub.y }
+      : { x: toStub.x, y: fromStub.y };
+    const legsClear = (corner) =>
+      !segmentIntersectsRect(fromStub, corner, fromRect)
+      && !segmentIntersectsRect(fromStub, corner, toRect)
+      && !segmentIntersectsRect(corner, toStub, fromRect)
+      && !segmentIntersectsRect(corner, toStub, toRect);
+    mids.push(legsClear(cleanCorner) || !legsClear(altCorner) ? cleanCorner : altCorner);
+  }
+
+  const points = [];
+  [fromPoint, fromStub, ...mids, toStub, toPoint].forEach((point) => addDistinctPoint(points, point));
+  return points;
+}
+
+function buildOrthogonalPath(fromPoint, toPoint, fromPort = 'right', toPort = 'left', fromRect = null, toRect = null) {
+  let points;
+  if (fromRect && toRect) {
+    points = getOrthogonalPoints(fromPoint, toPoint, fromPort, toPort, fromRect, toRect);
+  } else {
+    const fromStub = offsetPoint(fromPoint, getPortNormal(fromPort), ORTHOGONAL_STUB_LENGTH);
+    const toStub = offsetPoint(toPoint, getPortNormal(toPort), ORTHOGONAL_STUB_LENGTH);
+    points = [];
+    [
+      fromPoint,
+      fromStub,
+      ...getOrthogonalMidpoints(fromStub, toStub, fromPort, toPort),
+      toStub,
+      toPoint
+    ].forEach((point) => addDistinctPoint(points, point));
+  }
 
   const label = getPolylineLabelPoint(points);
   return {
-    d: buildPathFromPoints(points),
+    d: buildRoundedPath(points, ORTHOGONAL_CORNER_RADIUS),
     labelX: label.x,
     labelY: label.y
   };
@@ -655,7 +827,9 @@ function buildEdgePath(edge, fromNode = null, toNode = null) {
   }
 
   if (route === 'orthogonal') {
-    return buildOrthogonalPath(fromPoint, toPoint, fromPort, toPort);
+    const fromRect = (!edge?.fromPoint && fromNode) ? getNodeRectBounds(fromNode, ORTHOGONAL_CLEARANCE) : null;
+    const toRect = (!edge?.toPoint && toNode) ? getNodeRectBounds(toNode, ORTHOGONAL_CLEARANCE) : null;
+    return buildOrthogonalPath(fromPoint, toPoint, fromPort, toPort, fromRect, toRect);
   }
 
   return buildCurvePath(fromPoint, toPoint, fromPort, toPort);

@@ -1,6 +1,6 @@
 {
   "name": "@vanduo-oss/flowchart",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Standalone SVG flowchart editor for Vanduo diagrams and documentation",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -44,13 +44,16 @@
   "scripts": {
     "build": "node scripts/build.js",
     "clean": "rm -rf dist",
+    "demo": "nodemon --watch src --watch demo --ext js,html,css --exec \"serve -l 8793 .\"",
     "prepack": "pnpm run build",
     "test": "playwright test",
     "test:ui": "playwright test --ui"
   },
   "devDependencies": {
     "@playwright/test": "1.59.1",
-    "esbuild": "^0.27.7"
+    "esbuild": "^0.27.7",
+    "nodemon": "^3.1.0",
+    "serve": "^14.2.0"
   },
   "engines": {
     "node": ">=18.0.0",

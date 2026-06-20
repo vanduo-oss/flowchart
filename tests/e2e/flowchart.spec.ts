@@ -625,6 +625,57 @@ test.describe('Vanduo Flowchart', () => {
     expect(result.end).toEqual(result.expectedEnd);
   });
 
+  test('orthogonal routing loops around nodes instead of cutting through them', async ({ page }) => {
+    // Each case places the target so a naive route would slice a node:
+    //  - parallel ports (right -> left) with target directly below
+    //  - perpendicular ports (right -> top) with the target's top-center
+    //    inside the source's x-range (the regression flagged in review)
+    const results = await page.evaluate(() => {
+      const cases = [
+        { ports: { from: 'right', to: 'left' }, dst: { x: 380, y: 470 } },
+        { ports: { from: 'right', to: 'top' }, dst: { x: 360, y: 470 } }
+      ];
+      const src = { id: 'source', type: 'rect', x: 360, y: 280, width: 120, height: 90 };
+      return cases.map((c) => {
+        const dst = { id: 'target', type: 'rect', width: 120, height: 90, ...c.dst };
+        (window as any).flowchartEditor.load({
+          nodes: [
+            { ...src, text: 'A' },
+            { ...dst, text: 'B' }
+          ],
+          edges: [{ id: 'e', from: { nodeId: 'source', port: c.ports.from }, to: { nodeId: 'target', port: c.ports.to }, route: 'orthogonal' }]
+        });
+        const d = document.querySelector('#editor [data-edge-id="e"] .vd-flowchart-edge-path')?.getAttribute('d') ?? '';
+        const nums = (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+        const points: Array<{ x: number; y: number }> = [];
+        for (let i = 0; i + 1 < nums.length; i += 2) points.push({ x: nums[i], y: nums[i + 1] });
+        const strictlyInside = (n: { x: number; y: number; width: number; height: number }) => points.some((p) =>
+          p.x > n.x + 1 && p.x < n.x + n.width - 1 && p.y > n.y + 1 && p.y < n.y + n.height - 1);
+        return { ports: c.ports, source: strictlyInside(src), target: strictlyInside(dst) };
+      });
+    });
+
+    for (const r of results) {
+      expect(r.source, `source cut for ${r.ports.from}->${r.ports.to}`).toBe(false);
+      expect(r.target, `target cut for ${r.ports.from}->${r.ports.to}`).toBe(false);
+    }
+  });
+
+  test('selecting a node does not resize the canvas', async ({ page }) => {
+    const canvas = page.locator('#editor .vd-flowchart-canvas');
+    const before = (await canvas.boundingBox())!.height;
+
+    await page.locator('#editor .vd-flowchart-node[data-node-id="review"]').click();
+    await expect(page.locator('#editor [data-field="node-text"]')).toBeVisible();
+    const selected = (await canvas.boundingBox())!.height;
+
+    await canvas.click({ position: { x: 8, y: 8 } });
+    const deselected = (await canvas.boundingBox())!.height;
+
+    expect(selected).toBe(before);
+    expect(deselected).toBe(before);
+  });
+
   test('connection preview uses default curve and reconnect preview keeps edge route', async ({ page }) => {
     await loadTwoNodeFlow(page);
 
