@@ -625,6 +625,47 @@ test.describe('Vanduo Flowchart', () => {
     expect(result.end).toEqual(result.expectedEnd);
   });
 
+  test('orthogonal routing loops around nodes instead of cutting through them', async ({ page }) => {
+    // Source above, target directly below with right -> left ports: the route
+    // must go around (it cannot bridge straight), never through a node body.
+    const inside = await page.evaluate(() => {
+      const src = { id: 'source', type: 'rect', x: 360, y: 280, width: 120, height: 90 };
+      const dst = { id: 'target', type: 'rect', x: 380, y: 470, width: 120, height: 90 };
+      (window as any).flowchartEditor.load({
+        nodes: [
+          { ...src, text: 'A' },
+          { ...dst, text: 'B' }
+        ],
+        edges: [{ id: 'e', from: { nodeId: 'source', port: 'right' }, to: { nodeId: 'target', port: 'left' }, route: 'orthogonal' }]
+      });
+      const d = document.querySelector('#editor [data-edge-id="e"] .vd-flowchart-edge-path')?.getAttribute('d') ?? '';
+      const nums = (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+      const points: Array<{ x: number; y: number }> = [];
+      for (let i = 0; i + 1 < nums.length; i += 2) points.push({ x: nums[i], y: nums[i + 1] });
+      const strictlyInside = (n: typeof src) => points.some((p) =>
+        p.x > n.x + 1 && p.x < n.x + n.width - 1 && p.y > n.y + 1 && p.y < n.y + n.height - 1);
+      return { source: strictlyInside(src), target: strictlyInside(dst) };
+    });
+
+    expect(inside.source).toBe(false);
+    expect(inside.target).toBe(false);
+  });
+
+  test('selecting a node does not resize the canvas', async ({ page }) => {
+    const canvas = page.locator('#editor .vd-flowchart-canvas');
+    const before = (await canvas.boundingBox())!.height;
+
+    await page.locator('#editor .vd-flowchart-node[data-node-id="review"]').click();
+    await expect(page.locator('#editor [data-field="node-text"]')).toBeVisible();
+    const selected = (await canvas.boundingBox())!.height;
+
+    await canvas.click({ position: { x: 8, y: 8 } });
+    const deselected = (await canvas.boundingBox())!.height;
+
+    expect(selected).toBe(before);
+    expect(deselected).toBe(before);
+  });
+
   test('connection preview uses default curve and reconnect preview keeps edge route', async ({ page }) => {
     await loadTwoNodeFlow(page);
 
