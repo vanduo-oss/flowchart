@@ -609,7 +609,9 @@ function getPolylineLabelPoint(points) {
 // direction, negative when it sits behind it. Half-distance for the common
 // "ahead" case keeps curves taut; a gentle sqrt bow for the "behind" case
 // avoids the large loops/S-arcs the old max(dx, dy) heuristic produced.
-// Mirrors React Flow's getBezierPath control-offset model.
+// Mirrors React Flow's getBezierPath control-offset model. Always returns a
+// non-negative offset, so a target sharing the port's axis (distance 0) yields
+// a control point coincident with the port — i.e. no curvature on that axis.
 function calculateControlOffset(distance, curvature) {
   if (distance >= 0) {
     return 0.5 * distance;
@@ -662,6 +664,18 @@ function getNodeRectBounds(node, pad = 0) {
     right: node.x + node.width + pad,
     bottom: node.y + node.height + pad
   };
+}
+
+// Does an axis-aligned segment pass through a rect's interior? Edge contact
+// (e.g. a stub running along a node border or a port sitting on the boundary)
+// is not a hit — only strict interior overlap counts.
+function segmentIntersectsRect(a, b, rect) {
+  if (!rect) return false;
+  const minX = Math.min(a.x, b.x);
+  const maxX = Math.max(a.x, b.x);
+  const minY = Math.min(a.y, b.y);
+  const maxY = Math.max(a.y, b.y);
+  return minX < rect.right && maxX > rect.left && minY < rect.bottom && maxY > rect.top;
 }
 
 // Pick a perpendicular "channel" coordinate that sits clear of both node
@@ -719,6 +733,10 @@ function getOrthogonalPoints(fromPoint, toPoint, fromPort, toPort, fromRect, toR
   const mids = [];
 
   if (sourceHorizontal && targetHorizontal) {
+    // A straight vertical bridge only works when the ports face each other AND
+    // the stubs leave room between them. Otherwise (facing-but-overlapping, or
+    // same-direction ports) `facing && hasRoom` is false and we always detour
+    // through a clear horizontal channel — the channel handles every such case.
     const facing = fromNormal.x === -toNormal.x;
     const hasRoom = fromNormal.x > 0 ? fromStub.x <= toStub.x : fromStub.x >= toStub.x;
     if (facing && hasRoom) {
@@ -731,6 +749,7 @@ function getOrthogonalPoints(fromPoint, toPoint, fromPort, toPort, fromRect, toR
       mids.push({ x: fromStub.x, y: yChannel }, { x: toStub.x, y: yChannel });
     }
   } else if (!sourceHorizontal && !targetHorizontal) {
+    // Mirror of the both-horizontal case; see the comment above.
     const facing = fromNormal.y === -toNormal.y;
     const hasRoom = fromNormal.y > 0 ? fromStub.y <= toStub.y : fromStub.y >= toStub.y;
     if (facing && hasRoom) {
@@ -742,10 +761,24 @@ function getOrthogonalPoints(fromPoint, toPoint, fromPort, toPort, fromRect, toR
       const xChannel = pickOrthogonalChannel(fromStub.x, toStub.x, left, right);
       mids.push({ x: xChannel, y: fromStub.y }, { x: xChannel, y: toStub.y });
     }
-  } else if (sourceHorizontal) {
-    mids.push({ x: toStub.x, y: fromStub.y });
   } else {
-    mids.push({ x: fromStub.x, y: toStub.y });
+    // Perpendicular ports form an L with a single corner. Two corners respect
+    // the exit/entry directions: the "clean" one continues the source stub's
+    // axis, the alternate continues the target stub's axis. Prefer the clean
+    // corner, but fall back to the alternate when the clean L's legs would cut
+    // through either node (e.g. target tucked beside/under the source).
+    const cleanCorner = sourceHorizontal
+      ? { x: toStub.x, y: fromStub.y }
+      : { x: fromStub.x, y: toStub.y };
+    const altCorner = sourceHorizontal
+      ? { x: fromStub.x, y: toStub.y }
+      : { x: toStub.x, y: fromStub.y };
+    const legsClear = (corner) =>
+      !segmentIntersectsRect(fromStub, corner, fromRect)
+      && !segmentIntersectsRect(fromStub, corner, toRect)
+      && !segmentIntersectsRect(corner, toStub, fromRect)
+      && !segmentIntersectsRect(corner, toStub, toRect);
+    mids.push(legsClear(cleanCorner) || !legsClear(altCorner) ? cleanCorner : altCorner);
   }
 
   const points = [];
