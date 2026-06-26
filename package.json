@@ -1,6 +1,6 @@
 {
   "name": "@vanduo-oss/flowchart",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Standalone SVG flowchart editor for Vanduo diagrams and documentation",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -12,6 +12,12 @@
       "default": "./dist/index.js"
     },
     "./css": "./dist/vanduo-flowchart.css",
+    "./vue": {
+      "types": "./dist/vue.d.ts",
+      "import": "./dist/vue.js",
+      "require": "./dist/vue.cjs",
+      "default": "./dist/vue.js"
+    },
     "./iife": {
       "default": "./dist/vanduo-flowchart.iife.js"
     },
@@ -32,6 +38,14 @@
   ],
   "license": "MIT",
   "author": "vanduo-oss",
+  "peerDependencies": {
+    "vue": ">=3.3.0"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    }
+  },
   "homepage": "https://vanduo.dev/#docs/vd-flowchart",
   "repository": {
     "type": "git",
@@ -47,13 +61,17 @@
     "demo": "nodemon --watch src --watch demo --ext js,html,css --exec \"serve -l 8793 .\"",
     "prepack": "pnpm run build",
     "test": "playwright test",
-    "test:ui": "playwright test --ui"
+    "test:ui": "playwright test --ui",
+    "openspec:validate": "openspec validate --all",
+    "openspec:list": "openspec list",
+    "openspec:update": "openspec update"
   },
   "devDependencies": {
     "@playwright/test": "1.59.1",
     "esbuild": "^0.27.7",
     "nodemon": "^3.1.0",
-    "serve": "^14.2.0"
+    "serve": "^14.2.0",
+    "vue": "^3.5.0"
   },
   "engines": {
     "node": ">=18.0.0",

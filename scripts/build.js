@@ -13,8 +13,9 @@ function resetDistDirectory() {
 }
 
 async function buildEntry(format, outfile, extra = {}) {
+  const { entry = 'index.js', ...rest } = extra;
   await esbuild.build({
-    entryPoints: [resolve(rootDir, 'src', 'index.js')],
+    entryPoints: [resolve(rootDir, 'src', entry)],
     outfile: resolve(distDir, outfile),
     bundle: true,
     format,
@@ -22,7 +23,7 @@ async function buildEntry(format, outfile, extra = {}) {
     sourcemap: true,
     minify: false,
     logLevel: 'warning',
-    ...extra
+    ...rest
   });
 }
 
@@ -35,9 +36,17 @@ async function build() {
     globalName: 'VanduoFlowchart'
   });
 
+  // Optional Vue 3 bindings — `vue` stays external (peer dependency).
+  await buildEntry('esm', 'vue.js', { entry: 'vue.js', external: ['vue'] });
+  await buildEntry('cjs', 'vue.cjs', { entry: 'vue.js', external: ['vue'] });
+
   copyFileSync(
     resolve(rootDir, 'src', 'styles.css'),
     resolve(distDir, 'vanduo-flowchart.css')
+  );
+  copyFileSync(
+    resolve(rootDir, 'src', 'vue.d.ts'),
+    resolve(distDir, 'vue.d.ts')
   );
 
   console.log('Built @vanduo-oss/flowchart dist artifacts.');

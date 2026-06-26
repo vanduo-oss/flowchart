@@ -1,0 +1,33 @@
+schema: spec-driven
+
+context: |
+  Package: @vanduo-oss/flowchart (MIT, vanduo-oss org). Current release version: 1.1.0.
+  Stack: Vanilla JavaScript (ESM source in src/index.js), esbuild → ESM/CJS/IIFE + CSS (scripts/build.js).
+  Flowchart: a standalone interactive SVG flowchart editor (toolbar, node palette, zoom/pan, selection,
+  inline text editing). class VdFlowchart; init(root) scans [data-vd-flowchart].
+  Vue (1.1.0): optional ./vue subpath (src/vue.js → dist/vue.js, dist/vue.cjs, dist/vue.d.ts) ships the
+  <VdFlowchart> component. `vue` is an OPTIONAL peer dependency, marked external in the build, never bundled.
+  SSR-safe (creates the editor on mount); forwards change/select/viewport/connect events.
+  Tests: Playwright in tests/ loading built dist; local demo via `pnpm demo` (serve on port 8793).
+  Repo: Standalone git repo nested in the Vanduo monorepo (0_vanduo). Canonical source here; built dist/ syncs
+  into docs/ ecosystem assets.
+  Public API contract: README.md + dist/vue.d.ts. Breaking changes require a semver bump and README updates.
+  Vanduo integration (optional): when window.Vanduo exists at load, the IIFE registers as `flowchart`, so scoped
+  Vanduo.init(root)/destroy(root)/reinit('flowchart', root) operate without framework changes.
+  Do not publish openspec/ to npm — the files field is dist/, README.md, LICENSE only.
+
+rules:
+  proposal:
+    - Call out npm semver impact and whether docs/ ecosystem asset sync is required
+    - Note if README, dist/vue.d.ts, or Playwright tests must change
+  specs:
+    - Use Given/When/Then scenario format under each requirement
+    - Use SHALL/MUST for normative requirements
+    - Keep the vanilla core and the optional Vue bindings as separate capabilities
+  design:
+    - Prefer extending src/index.js, src/vue.js, and src/styles.css over new abstractions
+    - Keep `vue` an optional peer (external in esbuild); never bundle Vue
+    - Document build-output impact (ESM, CJS, IIFE, CSS, vue.js/vue.cjs/vue.d.ts)
+  tasks:
+    - Include pnpm build and pnpm test when code changes
+    - Include README and dist/vue.d.ts updates when the public API changes
