@@ -1,0 +1,4 @@
+# pnpm settings live here (pnpm 10+ no longer reads the package.json "pnpm" field).
+onlyBuiltDependencies:
+  - esbuild
+  - "@playwright/test"
