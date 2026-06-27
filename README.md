@@ -116,6 +116,34 @@ Vanduo.destroy(root);
 Vanduo.reinit('flowchart', root);
 ```
 
+## Vue 3
+
+An optional Vue 3 component ships at `@vanduo-oss/flowchart/vue`. `vue` is an *optional* peer dependency — needed only when you import this subpath, so vanilla/CDN consumers are unaffected. The component is SSR-safe (the editor is created on mount into a plain container the server can pre-render).
+
+```vue
+<script setup>
+import { VdFlowchart } from '@vanduo-oss/flowchart/vue';
+import '@vanduo-oss/flowchart/css';
+
+const doc = {
+  nodes: [{ id: 'start', type: 'circle', x: 80, y: 80, text: 'Start' }],
+  edges: []
+};
+</script>
+
+<template>
+  <VdFlowchart :data="doc" :readonly="false" @change="onChange" />
+</template>
+```
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `data` | `{ nodes, edges }` | `{}` | Flowchart document. |
+| `readonly` | `boolean` | `false` | Render as a non-editable viewer. |
+| `gridSize` | `number` | — | Background grid size in px. |
+
+Emits `change`, `select`, `viewport`, `connect` (forwarded from the editor) plus `ready` (the editor instance, on mount). Changing `data` flows through `load()` (no recreate); changing `readonly`/`gridSize` recreates the editor. The component exposes `{ getInstance() }` via template ref for the full imperative API. Types ship with the subpath (`dist/vue.d.ts`).
+
 ## License
 
 MIT
