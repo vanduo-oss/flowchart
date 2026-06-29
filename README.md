@@ -1,149 +1,48 @@
 # @vanduo-oss/flowchart
 
-Standalone SVG flowchart editor for Vanduo diagrams, workflows, and documentation.
+[![npm](https://img.shields.io/npm/v/@vanduo-oss/flowchart.svg)](https://www.npmjs.com/package/@vanduo-oss/flowchart)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
+> Standalone SVG flowchart editor for the [Vanduo](https://vanduo.dev) design system.
+
+Nodes, port-guided edges with curve/straight/orthogonal routing, inline text editing, resize handles, and JSON import/export. Framework-agnostic, with an optional Vue 3 component.
 
 ## Install
 
-```bash
+```sh
 pnpm add @vanduo-oss/flowchart
 ```
 
-## Usage
+## Quick start
 
 ```js
-import { VdFlowchart } from '@vanduo-oss/flowchart';
-import '@vanduo-oss/flowchart/css';
+import { VdFlowchart } from "@vanduo-oss/flowchart";
+import "@vanduo-oss/flowchart/css";
 
 const editor = new VdFlowchart({
-  element: document.getElementById('flowchart-demo'),
+  element: document.getElementById("flowchart"),
   data: {
-    nodes: [
-      { id: 'start', type: 'circle', x: 80, y: 80, text: 'Start' },
-      { id: 'step', type: 'rounded-rect', x: 300, y: 92, text: 'Review request' }
-    ],
-    edges: [
-      {
-        id: 'edge-1',
-        from: { nodeId: 'start', port: 'right' },
-        to: { nodeId: 'step', port: 'left' },
-        kind: 'arrow',
-        route: 'orthogonal',
-        strokeWidth: 3.5
-      }
-    ]
-  }
+    nodes: [{ id: "start", type: "circle", x: 80, y: 80, text: "Start" }],
+    edges: [],
+  },
 });
 
-editor.addNode({ type: 'diamond', text: 'Approved?' });
-editor.addNode({ type: 'junction' });
-editor.zoomIn();
-editor.fitView();
-
+editor.addNode({ type: "diamond", text: "Approved?" });
 const snapshot = editor.toJSON();
-editor.load(snapshot);
-editor.destroy();
 ```
 
-## Features
-
-- Zoom in/out, wheel zoom, fit view, and viewport reset
-- Canvas panning and draggable nodes
-- Port-guided connections with a one-shot Arrow tool; drops snap to the nearest side of the target shape
-- Selected-only connection handles, selected-edge reconnect handles, and larger arrowheads for calmer pointer targeting
-- Per-edge route, marker, and line-weight controls with `thin`, `medium`, and `bold` presets
-- Natural `curve` edges (per-axis bezier control offsets) and node-aware `orthogonal` routing with rounded corners that routes around nodes instead of cutting through them
-- Double-click inline text editing with commit/cancel keyboard controls
-- Selected-node resize handles with live edge endpoint updates
-- Built-in editor shell with primitive previews, inspector, and JSON import/export
-- Minimal primitive set: `rounded-rect`, `rect`, `diamond`, `circle`, `textbox`, `label`, `junction`
-
-## API
-
-### Constructor
-
-```js
-new VdFlowchart({ element, data, readonly, gridSize })
-```
-
-The editor fills its host element and ships a default height of `560px`. Give the
-host element a `height` or `min-height` to size the editor; the canvas stays a
-fixed size while the inspector scrolls internally, so selecting a node never
-resizes the canvas.
-
-### Methods
-
-- `addNode(node)` / `updateNode(id, patch)` / `removeNode(id)`
-- `addEdge(edge)` / `updateEdge(id, patch)` / `removeEdge(id)`
-- `zoomIn()` / `zoomOut()` / `resetView()` / `fitView()` / `setViewport(viewport)`
-- `toJSON()` / `load(data)` / `clear()`
-- `startTextEdit(nodeId)` / `stopTextEdit({ commit })`
-- `on(event, callback)` / `off(event, callback)` / `destroy()`
-
-### Events
-
-- `change` — fired after document mutations and viewport updates
-- `select` — fired when the selected node or edge changes
-- `viewport` — fired after pan/zoom changes
-- `connect` — fired when a new edge is created
-
-Resize completion emits `change` with `reason: 'node:resize'`. Text edits commit through the existing node update path and keep the inspector and JSON panel synchronized with `nodes[].text`.
-Edge JSON can include `route`, `startMarker`, `endMarker`, and `strokeWidth`.
-
-## Vanduo Auto Init
-
-The browser bundle exposes `window.VanduoFlowchart`. If `window.Vanduo` is present, it self-registers as the `flowchart` component:
-
-```html
-<script type="application/json" id="flow-data">
-{
-  "nodes": [
-    { "id": "start", "type": "circle", "x": 80, "y": 80, "text": "Start" }
-  ],
-  "edges": []
-}
-</script>
-
-<div
-  data-vd-flowchart
-  data-vd-flowchart-data="#flow-data"
-  data-vd-flowchart-grid-size="24">
-</div>
-```
-
-```js
-Vanduo.init(root);
-Vanduo.destroy(root);
-Vanduo.reinit('flowchart', root);
-```
-
-## Vue 3
-
-An optional Vue 3 component ships at `@vanduo-oss/flowchart/vue`. `vue` is an *optional* peer dependency — needed only when you import this subpath, so vanilla/CDN consumers are unaffected. The component is SSR-safe (the editor is created on mount into a plain container the server can pre-render).
+Auto-init: add `data-vd-flowchart` and call `Vanduo.init()`. Vue 3 (optional peer):
 
 ```vue
-<script setup>
-import { VdFlowchart } from '@vanduo-oss/flowchart/vue';
-import '@vanduo-oss/flowchart/css';
-
-const doc = {
-  nodes: [{ id: 'start', type: 'circle', x: 80, y: 80, text: 'Start' }],
-  edges: []
-};
-</script>
-
-<template>
-  <VdFlowchart :data="doc" :readonly="false" @change="onChange" />
-</template>
+<VdFlowchart :data="doc" @change="onChange" />
 ```
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `data` | `{ nodes, edges }` | `{}` | Flowchart document. |
-| `readonly` | `boolean` | `false` | Render as a non-editable viewer. |
-| `gridSize` | `number` | — | Background grid size in px. |
+## Documentation
 
-Emits `change`, `select`, `viewport`, `connect` (forwarded from the editor) plus `ready` (the editor instance, on mount). Changing `data` flows through `load()` (no recreate); changing `readonly`/`gridSize` recreates the editor. The component exposes `{ getInstance() }` via template ref for the full imperative API. Types ship with the subpath (`dist/vue.d.ts`).
+- Docs & live demos — https://vanduo.dev
+- Agent / LLM reference (full class API, events, node/edge schema) — [SKILL.md](./SKILL.md)
+- Changelog — [CHANGELOG.md](./CHANGELOG.md)
 
 ## License
 
-MIT
+[MIT](./LICENSE) © Vanduo
